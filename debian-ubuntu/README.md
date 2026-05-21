@@ -28,7 +28,7 @@ The `apt`-based family. Debian and Ubuntu share the package manager but **differ
 | | Debian 13 | Ubuntu 24.04 |
 |---|---|---|
 | Non-free repo | `contrib non-free` | `restricted multiverse` |
-| Driver branch | 535 (main) / 550 (backports) | 550–570+ |
+| Driver branch | 550.163.01 (main & backports) | 550–570+ |
 | Autodetect helper | none | `ubuntu-drivers` |
 | Hybrid switching | built into `nvidia-driver` | `prime-select` / `nvidia-prime` |
 | Default DM | SDDM (KDE) | GDM3 (GNOME) |

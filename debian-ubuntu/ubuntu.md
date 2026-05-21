@@ -35,7 +35,7 @@ That's the happy path. Everything below is the detail and the failure modes.
 | Concern | Debian 13 | Ubuntu 24.04 |
 |---------|-----------|--------------|
 | Non-free location | `contrib non-free` components | `restricted` + `multiverse` |
-| Driver version | 535 (main) / 550 (backports) | 550–570+ in `restricted` |
+| Driver version | 550.163.01 (main & backports) | 550–570+ in `restricted` |
 | Autodetect tool | none | `ubuntu-drivers` |
 | Hybrid switching | built into `nvidia-driver` | `prime-select` (the `nvidia-prime` package) |
 | Default DE | KDE Plasma (SDDM) on your install | GNOME (GDM3) |
