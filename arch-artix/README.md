@@ -281,22 +281,33 @@ Optimus laptops can still see flicker / XWayland sync issues. If anything misbeh
 
 ### wlroots compositors (Hyprland / Sway) — required NVIDIA env vars
 
-Plain KDE/GNOME on Wayland mostly works once `modeset=1` is set. **wlroots-based compositors (Hyprland, Sway) need extra NVIDIA environment variables**, or you get an invisible/garbled cursor, a black screen, or a compositor that won't start. The [LogOS](#confirmed-in-logos) installer writes these for Hyprland — set them globally via `/etc/environment.d/`:
+Plain KDE/GNOME on Wayland mostly works once `modeset=1` is set. **wlroots-based compositors (Hyprland, Sway) historically needed extra NVIDIA environment variables**, or you got an invisible/garbled cursor, a black screen, or a compositor that wouldn't start. Set the GL/VA-API vars globally via `/etc/environment.d/`:
 
 ```bash
 sudo mkdir -p /etc/environment.d
 sudo tee /etc/environment.d/90-nvidia-wayland.conf >/dev/null <<'EOF'
-LIBVA_DRIVER_NAME=nvidia
 __GLX_VENDOR_LIBRARY_NAME=nvidia
-WLR_NO_HARDWARE_CURSORS=1
+LIBVA_DRIVER_NAME=nvidia
 EOF
 ```
 
 | Variable | Why |
 |----------|-----|
-| `WLR_NO_HARDWARE_CURSORS=1` | **The big one** — fixes the invisible / flickering hardware cursor on NVIDIA + wlroots. |
 | `__GLX_VENDOR_LIBRARY_NAME=nvidia` | Routes GLX through the NVIDIA implementation. |
 | `LIBVA_DRIVER_NAME=nvidia` | Use NVIDIA's VA-API driver for hardware video decode. |
+
+#### The cursor variable: `WLR_NO_HARDWARE_CURSORS` is deprecated on Hyprland
+
+The old fix for the invisible/flickering NVIDIA cursor was `WLR_NO_HARDWARE_CURSORS=1`. **On Hyprland this env var is deprecated since Hyprland 0.42** — and on recent drivers the hardware-cursor bug is largely fixed, so you often need *nothing*. If you do still see a broken cursor on Hyprland, use the config option instead of the env var, in `hyprland.conf`:
+
+```ini
+cursor {
+    no_hardware_cursors = true
+}
+```
+
+- **Hyprland (0.42+):** prefer `cursor { no_hardware_cursors = true }` in `hyprland.conf`; don't set the env var (it logs a deprecation warning).
+- **Sway and older wlroots compositors:** the `WLR_NO_HARDWARE_CURSORS=1` env var is **still valid** — add it to the `/etc/environment.d` file above if your cursor is broken there.
 
 Commonly also needed on older setups (add if the compositor still won't start): `GBM_BACKEND=nvidia-drm`. On driver 545+ with `modeset=1` it's usually unnecessary, and setting it can break some Electron/Chromium apps — add only if required.
 
@@ -385,7 +396,7 @@ Note `sbctl` signs kernels/EFI binaries; the **NVIDIA DKMS module still needs th
 6. **`grub-mkconfig` ≠ `pacman.conf`.** Bootloader config and package config are separate subsystems (mirrors the Debian `update-grub` note).
 7. **Optimus laptops: prefer PRIME offload (`prime-run`)** over a switching daemon unless you specifically need full nvidia-only mode. Less to break.
 8. **When a session black-screens, switch to X11 first.** Cheapest fix, every time — the rolling-release newness doesn't change that on Optimus.
-9. **wlroots (Hyprland/Sway) needs `WLR_NO_HARDWARE_CURSORS=1`** and the NVIDIA GLX/VA-API env vars, or the cursor vanishes / the compositor won't start. Plain KDE/GNOME Wayland doesn't need them.
+9. **wlroots (Hyprland/Sway) needs the NVIDIA GLX/VA-API env vars**, or the cursor vanishes / the compositor won't start. The old `WLR_NO_HARDWARE_CURSORS=1` cursor fix is **deprecated on Hyprland 0.42+** (use `cursor { no_hardware_cursors = true }` in `hyprland.conf`; recent drivers often need neither) — but it's still valid for Sway/older wlroots. Plain KDE/GNOME Wayland doesn't need any of them.
 
 ---
 
@@ -394,7 +405,7 @@ Note `sbctl` signs kernels/EFI binaries; the **NVIDIA DKMS module still needs th
 Several pieces of this guide are battle-tested in my **LogOS** Arch installer (an automated, security-hardened Arch build), not just drawn from the wiki. What LogOS does in practice:
 
 - **Driver install** (`lib/desktop.sh`): detects the GPU via `lspci` and installs `nvidia nvidia-utils nvidia-settings nvidia-lts` — the dual prebuilt-module pattern (both `linux` and `linux-lts` kernels), not DKMS. See [Step 3 → multi-kernel pattern](#multi-kernel-pattern-prebuilt-modules-instead-of-dkms).
-- **Wayland env vars** (`lib/desktop-hyprland.sh`): writes `/etc/environment.d/logos-nvidia.conf` with `LIBVA_DRIVER_NAME=nvidia`, `__GLX_VENDOR_LIBRARY_NAME=nvidia`, `WLR_NO_HARDWARE_CURSORS=1` whenever an NVIDIA GPU is detected. See [wlroots compositors](#wlroots-compositors-hyprland--sway--required-nvidia-env-vars).
+- **Wayland env vars** (`lib/desktop-hyprland.sh`): writes `/etc/environment.d/logos-nvidia.conf` with `LIBVA_DRIVER_NAME=nvidia`, `__GLX_VENDOR_LIBRARY_NAME=nvidia`, `WLR_NO_HARDWARE_CURSORS=1` whenever an NVIDIA GPU is detected. **Note:** that LogOS code predates Hyprland 0.42, which deprecated `WLR_NO_HARDWARE_CURSORS` in favor of the `cursor { no_hardware_cursors = true }` config — so on current Hyprland the LogOS env var is harmless-but-dated. See [wlroots compositors](#wlroots-compositors-hyprland--sway--required-nvidia-env-vars).
 - **mkinitcpio** (`scripts/03-chroot-setup.sh`): keeps the `kms` hook and minimal `MODULES`, relying on `nvidia_drm.modeset=1` rather than early-loading the modules. See the [Step 4 note](#step-4-early-kms--load-the-modules-in-the-initramfs).
 - **Secure Boot** (build guide §11): documents NVIDIA + Secure Boot as "fragile / expect pain," recommends **disabling Secure Boot for NVIDIA** (Option A) and the DKMS-MOK-signing flow (Option B) when you must keep it on. Hardware-compat notes rate NVIDIA RTX 3000/4000 as "Fragile — DKMS + Secure Boot."
 - **Recovery**: LogOS's troubleshooting appendix uses the same `nomodeset` GRUB edit → `pacman -S nvidia-dkms && mkinitcpio -P` path documented in [recovery.md](recovery.md).

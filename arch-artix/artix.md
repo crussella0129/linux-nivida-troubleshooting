@@ -65,13 +65,14 @@ The [Arch guide](README.md#wlroots-compositors-hyprland--sway--required-nvidia-e
 ```bash
 # Global, PAM-read (works without systemd):
 sudo tee -a /etc/environment >/dev/null <<'EOF'
-LIBVA_DRIVER_NAME=nvidia
 __GLX_VENDOR_LIBRARY_NAME=nvidia
-WLR_NO_HARDWARE_CURSORS=1
+LIBVA_DRIVER_NAME=nvidia
 EOF
 ```
 
-Alternatively export them in the compositor's launch path (`~/.config/hypr/hyprland.conf` `env =` lines, a wrapper script, or `~/.config/uwsm/env` if you use uwsm). The variables themselves are identical to Arch — only the *delivery mechanism* changes because there's no systemd user environment generator.
+> **Cursor variable:** `WLR_NO_HARDWARE_CURSORS=1` is **deprecated on Hyprland 0.42+** — there, prefer `cursor { no_hardware_cursors = true }` in `hyprland.conf` (recent drivers often need neither). It is **still valid for Sway and older wlroots**, so if your cursor is broken under Sway add `WLR_NO_HARDWARE_CURSORS=1` to the `/etc/environment` block above.
+
+Alternatively export them in the compositor's launch path (`~/.config/hypr/hyprland.conf` `env =` lines, a wrapper script, or `~/.config/uwsm/env` if you use uwsm). The GL/VA-API variables are identical to Arch — only the *delivery mechanism* changes because there's no systemd user environment generator.
 
 ---
 

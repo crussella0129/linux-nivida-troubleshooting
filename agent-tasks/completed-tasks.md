@@ -17,3 +17,9 @@
 - **Completed:** 2026-05-20T23:52:00Z
 - **Files modified:** arch-artix/README.md, arch-artix/quick-reference.md
 - **Commit:** `dc37636`
+
+## T-004 (sprint 0)
+- **Description:** Mark WLR_NO_HARDWARE_CURSORS deprecated (Hyprland 0.42+), add hyprland.conf cursor config to README, retain env var for Sway/older, flag LogOS advice as predating the deprecation
+- **Completed:** 2026-05-20T23:58:00Z
+- **Files modified:** arch-artix/README.md, arch-artix/artix.md, arch-artix/quick-reference.md
+- **Commit:** `b16b0de`

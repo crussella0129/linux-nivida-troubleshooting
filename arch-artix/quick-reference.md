@@ -65,14 +65,13 @@ CUDA/compute needs no env vars in any mode.
 
 ```bash
 sudo tee /etc/environment.d/90-nvidia-wayland.conf >/dev/null <<'EOF'
-LIBVA_DRIVER_NAME=nvidia
 __GLX_VENDOR_LIBRARY_NAME=nvidia
-WLR_NO_HARDWARE_CURSORS=1
+LIBVA_DRIVER_NAME=nvidia
 EOF
 # Artix (no systemd): put these in /etc/environment instead.
 # Add GBM_BACKEND=nvidia-drm only if the compositor still won't start.
 ```
-`WLR_NO_HARDWARE_CURSORS=1` is the invisible-cursor fix. Plain KDE/GNOME Wayland doesn't need these.
+Cursor fix: `WLR_NO_HARDWARE_CURSORS=1` is **deprecated on Hyprland 0.42+** — use `cursor { no_hardware_cursors = true }` in `hyprland.conf` (recent drivers often need neither). Still valid for **Sway/older wlroots**. Plain KDE/GNOME Wayland needs none of these.
 
 ## Secure Boot + NVIDIA (fragile)
 
