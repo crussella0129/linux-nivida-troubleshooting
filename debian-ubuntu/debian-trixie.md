@@ -35,7 +35,7 @@ If anything goes wrong, see [Recovery from Black Screen](#recovery-from-black-sc
 
 Naïve install (`sudo apt install nvidia-driver`) **black-screens an Alienware laptop after login**. Two reasons stack:
 
-1. **KDE Plasma 6 defaults to Wayland on Trixie.** NVIDIA's Wayland support requires driver 555+ for stability (per KDE's own documentation). Debian Trixie ships 535.x in main, 550.x in backports — **both below the 555 floor.**
+1. **KDE Plasma 6 defaults to Wayland on Trixie.** NVIDIA's Wayland support requires driver 555+ for stability (per KDE's own documentation — that's the explicit-sync floor). Debian Trixie ships **550.163.01** in both main and backports — **still below the 555 floor.**
 2. **Optimus hybrid graphics.** Intel iGPU drives the display; NVIDIA dGPU renders to an offscreen buffer that gets composited over. Wayland + Optimus + sub-555 NVIDIA = broken session.
 
 The fix isn't a complex config — it's **logging into the X11 session instead of Wayland**. The SDDM config file we add helps but isn't always sufficient on first boot; the session selector at login is the actual control surface.
@@ -444,7 +444,9 @@ Login screen returns. **Pick X11 session before logging in.**
 
 ## Wayland: When It Becomes Viable
 
-NVIDIA + Wayland requires driver **555+** per [KDE's own documentation](https://community.kde.org/Plasma/Wayland/Nvidia). Debian Trixie main repos ship **535.x**; backports ships **550.x**. Both below the 555 floor.
+NVIDIA + Wayland requires driver **555+** per [KDE's own documentation](https://community.kde.org/Plasma/Wayland/Nvidia) (the 555.58 release added explicit GPU sync via `linux-drm-syncobj-v1`, which Plasma 6.1 needs to stop flickering). Debian Trixie ships **550.163.01** in both main *and* backports — below the 555 floor, so X11 remains the recommendation on Trixie.
+
+> **Kernel-compat gotcha (Trixie):** Trixie's base kernel is **6.12 LTS**, which the 550 driver builds against fine. But `trixie-backports` has shipped newer kernels, and as of early 2026 the backports 550.163.01 driver **no longer compiles on kernel 6.19+** (DKMS build fails). If you run a backports kernel, either hold it at a 550-compatible version or wait for a newer backports driver. Check `uname -r` against what the driver supports before upgrading the kernel.
 
 When Trixie backports ships 565+ (which has the major Plasma compositor crash fix):
 
