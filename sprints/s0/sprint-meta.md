@@ -6,4 +6,4 @@
 - **Model:** claude-opus-4-7[1m]
 - **Exit status:** in-progress
 - **Token count:** (filled at Loop Phase if observable)
-- **Summary:** (one-line description of sprint goal, filled after Plan Phase)
+- **Summary:** Correct verified factual drift in the NVIDIA guides (Debian driver version 535→550.163.01, Arch open-modules-default for Turing+, WLR_NO_HARDWARE_CURSORS deprecation) via surgical edits; Test phase deferred to hardware.

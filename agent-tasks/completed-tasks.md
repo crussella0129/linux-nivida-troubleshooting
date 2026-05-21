@@ -23,3 +23,9 @@
 - **Completed:** 2026-05-20T23:58:00Z
 - **Files modified:** arch-artix/README.md, arch-artix/artix.md, arch-artix/quick-reference.md
 - **Commit:** `b16b0de`
+
+## T-005 (sprint 0)
+- **Description:** Append two ADRs (open-modules-default for Turing+; surgical-edits policy) to decisions.md and set the sprint-meta summary line
+- **Completed:** 2026-05-21T00:02:00Z
+- **Files modified:** decisions.md, sprints/s0/sprint-meta.md
+- **Commit:** `60c1521`
