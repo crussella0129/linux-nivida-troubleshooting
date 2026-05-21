@@ -28,17 +28,21 @@ pacman -Q linux linux-lts linux-zen linux-hardened 2>/dev/null   # which kernel(
 uname -r
 ```
 
-| Installed kernel | NVIDIA package to use |
-|------------------|------------------------|
-| `linux` (default) | `nvidia` |
-| `linux-lts` | `nvidia-lts` |
-| `linux-zen`, `linux-hardened`, custom, **or more than one** | `nvidia-dkms` |
+**First decide open vs proprietary modules, then match the package to your kernel.**
 
-- **`nvidia`** ships a prebuilt module matched to the current `linux` package — fastest, no build step, but you must keep them upgraded together.
-- **`nvidia-dkms`** rebuilds the module for any kernel via DKMS — the safe choice if you run zen/lts/multiple kernels. Needs the matching `*-headers` package.
-- **Open kernel modules:** `nvidia-open` (matched to `linux`) or `nvidia-open-dkms`. **Recommended by NVIDIA for Turing (RTX 20-series) and newer.** For an RTX 40-series Alienware, `nvidia-open-dkms` is a good default; older Maxwell/Pascal GPUs must use the proprietary `nvidia`/`nvidia-dkms`.
+Since the NVIDIA 560 driver series, the **open kernel modules are the default and the recommended flavor for Turing (RTX 20-series) and newer** — and Arch's own `nvidia` package now ships the *open* modules, not the proprietary ones. So on a modern card (RTX 20/30/40-series), the open variant is what you want; the proprietary modules are now only for **legacy Maxwell / Pascal / Volta** GPUs that the open modules don't support.
 
-> Throughout this guide, substitute your chosen package name. Examples use `nvidia-dkms` because it's the most robust for a laptop you'll keep upgrading.
+| Installed kernel | Modern GPU (Turing+, RTX 20-series and newer) — **open** | Legacy GPU (Maxwell/Pascal/Volta) — proprietary |
+|------------------|----------------------------------------------------------|--------------------------------------------------|
+| `linux` (default) | `nvidia-open` | `nvidia` |
+| `linux-lts` | `nvidia-open` *(DKMS)* or `nvidia-lts` build | `nvidia-lts` |
+| `linux-zen`, `linux-hardened`, custom, **or more than one** | `nvidia-open-dkms` | `nvidia-dkms` |
+
+- **`nvidia-open` / `nvidia-open-dkms`** — the **default for Turing+**; same CUDA/Vulkan/OpenGL/X11 support as proprietary, built from the same source. `nvidia-open` is prebuilt for `linux`; `nvidia-open-dkms` rebuilds for any kernel (needs `*-headers`).
+- **`nvidia` / `nvidia-dkms` (proprietary)** — required for **Maxwell/Pascal/Volta**; the open modules don't support them. Note Arch's `nvidia` package itself moved to open modules, so "proprietary" now specifically means the legacy-capable closed build.
+- **Match the kernel:** prebuilt packages (`nvidia`, `nvidia-open`, `nvidia-lts`) track a specific kernel; the `*-dkms` variants rebuild for any kernel. Run zen/hardened/custom or multiple kernels → use a `-dkms` package.
+
+> Throughout this guide, substitute your chosen package name. Examples use `nvidia-open-dkms` (the modern default) — on a legacy GPU read those as `nvidia-dkms`.
 
 ---
 

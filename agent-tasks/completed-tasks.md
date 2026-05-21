@@ -11,3 +11,9 @@
 - **Completed:** 2026-05-20T23:48:00Z
 - **Files modified:** debian-ubuntu/README.md, debian-ubuntu/ubuntu.md
 - **Commit:** `c2b3604`
+
+## T-003 (sprint 0)
+- **Description:** Update Arch driver picker — open modules now default/recommended for Turing+, proprietary restricted to legacy Maxwell/Pascal/Volta
+- **Completed:** 2026-05-20T23:52:00Z
+- **Files modified:** arch-artix/README.md, arch-artix/quick-reference.md
+- **Commit:** `dc37636`

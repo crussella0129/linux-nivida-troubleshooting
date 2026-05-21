@@ -12,11 +12,13 @@ Cheatsheet. Full detail: [README.md](README.md) (Arch), [artix.md](artix.md) (no
 
 ## Driver package picker
 
-| Kernel | Proprietary | Open (Turing/RTX 20+) |
-|--------|-------------|------------------------|
-| `linux` | `nvidia` | `nvidia-open` |
-| `linux-lts` | `nvidia-lts` | — |
-| custom / zen / multiple | `nvidia-dkms` | `nvidia-open-dkms` |
+Open modules are the **default since driver 560** and recommended for Turing+ (RTX 20-series and newer); Arch's `nvidia` package now ships open modules. Proprietary is only for legacy Maxwell/Pascal/Volta.
+
+| Kernel | **Modern GPU (Turing+) — open, default** | Legacy (Maxwell/Pascal/Volta) — proprietary |
+|--------|------------------------------------------|----------------------------------------------|
+| `linux` | `nvidia-open` | `nvidia` |
+| `linux-lts` | `nvidia-open` (dkms) | `nvidia-lts` |
+| custom / zen / multiple | `nvidia-open-dkms` | `nvidia-dkms` |
 
 ---
 
