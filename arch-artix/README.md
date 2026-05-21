@@ -96,6 +96,17 @@ What each does:
 
 > **Critical Arch rule:** `nvidia-utils` and the kernel-module package **must be the same version**. `pacman -Syu` guarantees this. A `pacman -Sy nvidia-utils` (sync db but don't upgrade everything) does **not**, and is a classic black-screen cause. See [Lessons](#lessons-learned).
 
+### Multi-kernel pattern (prebuilt modules instead of DKMS)
+
+If you run **both** `linux` and `linux-lts` (a common belt-and-suspenders setup so you always have a known-good fallback kernel), install the matching prebuilt module for *each* instead of using DKMS — this is what the [LogOS](#confirmed-in-logos) installer does:
+
+```bash
+sudo pacman -S nvidia nvidia-lts nvidia-utils nvidia-settings
+#              ^module for `linux`   ^module for `linux-lts`
+```
+
+`nvidia-utils` is shared; each kernel gets its own prebuilt module package. This avoids DKMS build time entirely but **requires the pacman hook in Step 5** to keep the initramfs in sync on upgrades. Choose this *or* `nvidia-dkms` — not both.
+
 ---
 
 ## Step 4: Early KMS — load the modules in the initramfs
@@ -123,6 +134,10 @@ Rebuild the initramfs:
 ```bash
 sudo mkinitcpio -P
 ```
+
+> **Two valid approaches — know which you're using.** This guide early-loads the NVIDIA modules via `MODULES=(...)` and drops the `kms` hook, which is the Arch Wiki recommendation and is **the more robust path for Wayland / wlroots compositors**.
+>
+> The [LogOS](#confirmed-in-logos) installer takes the other valid approach: it **keeps the `kms` hook**, leaves `MODULES` minimal (just the root-fs module, e.g. `btrfs`), and relies on `nvidia_drm.modeset=1` (Step 6) plus the early-KMS hook to bring up the GPU. That works fine for X11 and KDE/SDDM. If you go that route, *don't also* add the nvidia modules to `MODULES` — pick one. For a Wayland-first laptop, prefer early-loading the modules.
 
 ---
 
@@ -260,14 +275,99 @@ Because Arch ships 570+ (well above the 555 floor that blocks Debian), Wayland i
 
 Optimus laptops can still see flicker / XWayland sync issues. If anything misbehaves, drop back to X11 — it remains the most stable path. (Same conclusion as the Debian guide, just with a newer driver floor.)
 
+### wlroots compositors (Hyprland / Sway) — required NVIDIA env vars
+
+Plain KDE/GNOME on Wayland mostly works once `modeset=1` is set. **wlroots-based compositors (Hyprland, Sway) need extra NVIDIA environment variables**, or you get an invisible/garbled cursor, a black screen, or a compositor that won't start. The [LogOS](#confirmed-in-logos) installer writes these for Hyprland — set them globally via `/etc/environment.d/`:
+
+```bash
+sudo mkdir -p /etc/environment.d
+sudo tee /etc/environment.d/90-nvidia-wayland.conf >/dev/null <<'EOF'
+LIBVA_DRIVER_NAME=nvidia
+__GLX_VENDOR_LIBRARY_NAME=nvidia
+WLR_NO_HARDWARE_CURSORS=1
+EOF
+```
+
+| Variable | Why |
+|----------|-----|
+| `WLR_NO_HARDWARE_CURSORS=1` | **The big one** — fixes the invisible / flickering hardware cursor on NVIDIA + wlroots. |
+| `__GLX_VENDOR_LIBRARY_NAME=nvidia` | Routes GLX through the NVIDIA implementation. |
+| `LIBVA_DRIVER_NAME=nvidia` | Use NVIDIA's VA-API driver for hardware video decode. |
+
+Commonly also needed on older setups (add if the compositor still won't start): `GBM_BACKEND=nvidia-drm`. On driver 545+ with `modeset=1` it's usually unnecessary, and setting it can break some Electron/Chromium apps — add only if required.
+
+> `/etc/environment.d/` is read by systemd user sessions. On **Artix** (no systemd) put these in `/etc/environment` (or your compositor's launch env / `~/.config/uwsm/env`) instead — see [artix.md](artix.md).
+
 ---
 
 ## Secure Boot
 
-Arch installs usually run with Secure Boot off. If you enable it (e.g. with `sbctl`), the DKMS-built module is unsigned and won't load (`Required key not available`). Options:
+Arch installs usually run with Secure Boot off. If you enable it, the DKMS-built NVIDIA module is unsigned and won't load (`Required key not available`). NVIDIA + DKMS + Secure Boot is a genuinely **fragile combo** — every kernel/driver update must re-sign or you black-screen. Three options, easiest first.
 
-- Disable Secure Boot in BIOS (simplest), **or**
-- Sign the kernel + modules yourself: set up `sbctl`, enroll keys, and sign on each rebuild (a DKMS sign hook). This is more involved than Debian's `update-secureboot-policy`; see the Arch wiki "Unified Extensible Firmware Interface/Secure Boot" if you need it.
+### Option A — Disable Secure Boot (recommended for NVIDIA)
+
+BIOS → Security → Secure Boot → Disabled. The [LogOS](#confirmed-in-logos) guidance is explicit about this: for NVIDIA GPUs, disabling Secure Boot is the pragmatic choice; reserve full Secure Boot for AMD machines. No signing, no per-update breakage.
+
+### Option B — Sign DKMS modules with a MOK key
+
+This makes DKMS auto-sign the module on every rebuild, then you enroll the key once. (Lifted from the LogOS build guide, §11.3.1.)
+
+```bash
+sudo pacman -S nvidia-dkms nvidia-utils nvidia-settings
+
+# 1. Generate a signing key (valid 100 years)
+sudo openssl req -new -x509 -newkey rsa:2048 \
+  -keyout /etc/dkms/mok.key -out /etc/dkms/mok.crt \
+  -nodes -days 36500 -subj "/CN=DKMS Signing Key/"
+
+# 2. Tell DKMS to use it
+sudo tee /etc/dkms/framework.conf.d/mok-signing.conf >/dev/null <<'EOF'
+mok_signing_key="/etc/dkms/mok.key"
+mok_certificate="/etc/dkms/mok.crt"
+sign_tool="/etc/dkms/sign_helper.sh"
+EOF
+
+# 3. Signing helper
+sudo tee /etc/dkms/sign_helper.sh >/dev/null <<'EOF'
+#!/bin/bash
+/usr/bin/kmodsign sha512 /etc/dkms/mok.key /etc/dkms/mok.crt "$2"
+EOF
+sudo chmod +x /etc/dkms/sign_helper.sh
+
+# 4. Rebuild so the module gets signed, then enroll the key
+sudo dkms autoinstall
+sudo mokutil --import /etc/dkms/mok.crt   # set a one-time password
+sudo reboot                                # → MOK Manager → Enroll MOK → password
+```
+
+### Option C — Full Secure Boot with `sbctl` (signs the whole boot chain)
+
+If you also want signed kernels/bootloader (not just the NVIDIA module):
+
+```bash
+sudo sbctl create-keys
+sudo sbctl enroll-keys --microsoft         # keep Microsoft keys for firmware compat
+sudo sbctl sign -s /boot/vmlinuz-linux
+sudo sbctl sign -s /boot/vmlinuz-linux-lts
+# ...sign the bootloader EFI too
+# auto-sign on update via a pacman hook:
+sudo tee /etc/pacman.d/hooks/99-sbctl.hook >/dev/null <<'EOF'
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = boot/vmlinuz-*
+Target = usr/lib/modules/*/vmlinuz
+
+[Action]
+Description = Signing kernels for Secure Boot...
+When = PostTransaction
+Exec = /usr/bin/sbctl sign-all
+Depends = sbctl
+EOF
+```
+
+Note `sbctl` signs kernels/EFI binaries; the **NVIDIA DKMS module still needs the MOK signing from Option B** — they're complementary. This is why LogOS recommends AMD if you want full Secure Boot, and disabling Secure Boot if you're on NVIDIA.
 
 ---
 
@@ -281,3 +381,18 @@ Arch installs usually run with Secure Boot off. If you enable it (e.g. with `sbc
 6. **`grub-mkconfig` ≠ `pacman.conf`.** Bootloader config and package config are separate subsystems (mirrors the Debian `update-grub` note).
 7. **Optimus laptops: prefer PRIME offload (`prime-run`)** over a switching daemon unless you specifically need full nvidia-only mode. Less to break.
 8. **When a session black-screens, switch to X11 first.** Cheapest fix, every time — the rolling-release newness doesn't change that on Optimus.
+9. **wlroots (Hyprland/Sway) needs `WLR_NO_HARDWARE_CURSORS=1`** and the NVIDIA GLX/VA-API env vars, or the cursor vanishes / the compositor won't start. Plain KDE/GNOME Wayland doesn't need them.
+
+---
+
+## Confirmed in LogOS
+
+Several pieces of this guide are battle-tested in my **LogOS** Arch installer (an automated, security-hardened Arch build), not just drawn from the wiki. What LogOS does in practice:
+
+- **Driver install** (`lib/desktop.sh`): detects the GPU via `lspci` and installs `nvidia nvidia-utils nvidia-settings nvidia-lts` — the dual prebuilt-module pattern (both `linux` and `linux-lts` kernels), not DKMS. See [Step 3 → multi-kernel pattern](#multi-kernel-pattern-prebuilt-modules-instead-of-dkms).
+- **Wayland env vars** (`lib/desktop-hyprland.sh`): writes `/etc/environment.d/logos-nvidia.conf` with `LIBVA_DRIVER_NAME=nvidia`, `__GLX_VENDOR_LIBRARY_NAME=nvidia`, `WLR_NO_HARDWARE_CURSORS=1` whenever an NVIDIA GPU is detected. See [wlroots compositors](#wlroots-compositors-hyprland--sway--required-nvidia-env-vars).
+- **mkinitcpio** (`scripts/03-chroot-setup.sh`): keeps the `kms` hook and minimal `MODULES`, relying on `nvidia_drm.modeset=1` rather than early-loading the modules. See the [Step 4 note](#step-4-early-kms--load-the-modules-in-the-initramfs).
+- **Secure Boot** (build guide §11): documents NVIDIA + Secure Boot as "fragile / expect pain," recommends **disabling Secure Boot for NVIDIA** (Option A) and the DKMS-MOK-signing flow (Option B) when you must keep it on. Hardware-compat notes rate NVIDIA RTX 3000/4000 as "Fragile — DKMS + Secure Boot."
+- **Recovery**: LogOS's troubleshooting appendix uses the same `nomodeset` GRUB edit → `pacman -S nvidia-dkms && mkinitcpio -P` path documented in [recovery.md](recovery.md).
+
+> Source repo: `~/LogOS-Arch` (also `~/LogOS`). The NVIDIA logic lives in `lib/desktop.sh`, `lib/desktop-hyprland.sh`, `lib/detect.sh`, `scripts/03-chroot-setup.sh`, and `docs/appendices/{troubleshooting,hardware-compat}.md`.

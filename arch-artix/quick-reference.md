@@ -59,6 +59,31 @@ prime-run <command>                  # run one app on the dGPU
 ```
 CUDA/compute needs no env vars in any mode.
 
+## wlroots (Hyprland/Sway) Wayland env vars — confirmed in LogOS
+
+```bash
+sudo tee /etc/environment.d/90-nvidia-wayland.conf >/dev/null <<'EOF'
+LIBVA_DRIVER_NAME=nvidia
+__GLX_VENDOR_LIBRARY_NAME=nvidia
+WLR_NO_HARDWARE_CURSORS=1
+EOF
+# Artix (no systemd): put these in /etc/environment instead.
+# Add GBM_BACKEND=nvidia-drm only if the compositor still won't start.
+```
+`WLR_NO_HARDWARE_CURSORS=1` is the invisible-cursor fix. Plain KDE/GNOME Wayland doesn't need these.
+
+## Secure Boot + NVIDIA (fragile)
+
+```bash
+# Easiest for NVIDIA: disable Secure Boot in BIOS.
+# Keep it on → sign the DKMS module with a MOK key:
+sudo openssl req -new -x509 -newkey rsa:2048 -keyout /etc/dkms/mok.key \
+  -out /etc/dkms/mok.crt -nodes -days 36500 -subj "/CN=DKMS Signing Key/"
+# configure /etc/dkms/framework.conf.d/mok-signing.conf + sign_helper.sh (see README Option B)
+sudo dkms autoinstall
+sudo mokutil --import /etc/dkms/mok.crt && sudo reboot   # → MOK Manager → Enroll
+```
+
 ## Verify
 
 ```bash

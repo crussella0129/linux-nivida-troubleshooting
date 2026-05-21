@@ -58,6 +58,23 @@ If `nvidia-smi` works as root but apps can't reach the GPU as your user, a missi
 
 ---
 
+## 2b. Wayland env vars without systemd
+
+The [Arch guide](README.md#wlroots-compositors-hyprland--sway--required-nvidia-env-vars) writes the NVIDIA wlroots variables to `/etc/environment.d/90-nvidia-wayland.conf`. **That directory is read by systemd user sessions, which Artix doesn't have.** Put them where your stack actually reads them instead:
+
+```bash
+# Global, PAM-read (works without systemd):
+sudo tee -a /etc/environment >/dev/null <<'EOF'
+LIBVA_DRIVER_NAME=nvidia
+__GLX_VENDOR_LIBRARY_NAME=nvidia
+WLR_NO_HARDWARE_CURSORS=1
+EOF
+```
+
+Alternatively export them in the compositor's launch path (`~/.config/hypr/hyprland.conf` `env =` lines, a wrapper script, or `~/.config/uwsm/env` if you use uwsm). The variables themselves are identical to Arch — only the *delivery mechanism* changes because there's no systemd user environment generator.
+
+---
+
 ## 3. Reading logs (no journalctl)
 
 | systemd | Artix equivalent |
