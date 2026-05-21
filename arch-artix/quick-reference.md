@@ -6,7 +6,7 @@ Cheatsheet. Full detail: [README.md](README.md) (Arch), [artix.md](artix.md) (no
 
 > 1. **Never partial-upgrade** → always `sudo pacman -Syu`. `nvidia-utils` must match the kernel module.
 > 2. **Match the driver to the kernel:** `nvidia`↔`linux`, `nvidia-lts`↔`linux-lts`, `nvidia-dkms` for custom/multiple.
-> 3. **X11 first** on Optimus; move to Wayland only after `nvidia_drm.modeset=1` is confirmed.
+> 3. **X11 first** on Optimus; move to Wayland after confirming DRM KMS is active (`modeset` = `Y`, on by default now).
 
 ---
 
@@ -22,23 +22,22 @@ Open modules are the **default since driver 560** and recommended for Turing+ (R
 
 ---
 
-## Full install (Arch, DKMS path)
+## Full install (Arch, Turing+ open-dkms path)
 
 ```bash
 # multilib in /etc/pacman.conf (uncomment [multilib]) then:
 sudo pacman -Syu
 sudo pacman -S linux-headers                       # headers per kernel (DKMS only)
-sudo pacman -S nvidia-dkms nvidia-utils nvidia-settings \
+sudo pacman -S nvidia-open-dkms nvidia-utils nvidia-settings \
                lib32-nvidia-utils opencl-nvidia cuda nvidia-prime
+# legacy Maxwell/Pascal/Volta → nvidia-dkms instead of nvidia-open-dkms
 
-# /etc/mkinitcpio.conf:
-#   MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
-#   remove 'kms' from HOOKS
-sudo mkinitcpio -P
+# DRM KMS (modeset + fbdev) is ON BY DEFAULT via nvidia-utils — verify:
+cat /sys/module/nvidia_drm/parameters/modeset       # expect Y (set cmdline only if N)
 
-# KMS for Wayland — add to kernel cmdline:
-#   nvidia_drm.modeset=1
-sudo grub-mkconfig -o /boot/grub/grub.cfg          # GRUB; or edit systemd-boot entry
+# OPTIONAL early-load (only if module loads after the DM / boot flicker):
+#   /etc/mkinitcpio.conf → MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
+#   then: sudo mkinitcpio -P
 
 # enable display manager
 sudo systemctl enable --now sddm                   # Artix: rc-service / sv / dinitctl

@@ -21,6 +21,14 @@ RHEL / Rocky / Alma don't use RPM Fusion — they go through NVIDIA's CUDA repo 
 | [recovery.md](recovery.md) | Emergency runbook — black screen / no login right now. |
 | [quick-reference.md](quick-reference.md) | One-page cheatsheet. |
 
+> ### 📌 Canonical, always-current sources
+> Fedora moves fast (new kernels mid-release) — **when this guide and RPM Fusion's docs disagree, trust RPM Fusion.** This guide adds the wait-for-akmod and Optimus specifics.
+>
+> - **[RPM Fusion: Howto/NVIDIA](https://rpmfusion.org/Howto/NVIDIA)** — the authoritative Fedora procedure (akmod, Secure Boot, CUDA)
+> - **[RPM Fusion: Howto/Secure Boot](https://rpmfusion.org/Howto/Secure%20Boot)** — current MOK signing steps
+> - **[NVIDIA CUDA on RHEL/Rocky/Alma](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/)** — the RHEL-family driver/CUDA repo
+> - *Last reconciled: 2026-05-21.*
+
 ---
 
 ## Step 0: Verify hardware & state

@@ -5,7 +5,7 @@ Rolling-release, `pacman`-based. Arch ships the **newest** NVIDIA drivers (570+)
 ## The principles that drive everything here
 
 > 1. **Never partial-upgrade.** `pacman -Sy nvidia` (or installing one package against a stale db) leaves `nvidia-utils` out of sync with the kernel module and black-screens you. Always full-upgrade: **`sudo pacman -Syu`**.
-> 2. **Pick the driver package that matches your kernel** (`nvidia` for `linux`, `nvidia-lts` for `linux-lts`, `nvidia-dkms` for anything else or multiple kernels).
+> 2. **Pick the right driver flavor + package.** Open modules (`nvidia-open`/`nvidia-open-dkms`) are the default for Turing+ (RTX 20-series and newer) since driver 560; proprietary (`nvidia`/`nvidia-dkms`/`nvidia-lts`) is for legacy Maxwell/Pascal/Volta. Then match the package to your kernel (`-dkms` for custom/multiple kernels). See [Step 0](#step-0-know-your-kernel-and-pick-the-right-driver-package).
 > 3. **Order still matters, and Wayland on Optimus still bites.** If a session black-screens, log into **X11** first before changing anything.
 
 ## Contents
@@ -16,6 +16,15 @@ Rolling-release, `pacman`-based. Arch ships the **newest** NVIDIA drivers (570+)
 | [artix.md](artix.md) | Artix differences — OpenRC / runit / s6 / dinit service commands, no `journalctl`, suspend handling. |
 | [recovery.md](recovery.md) | Emergency runbook — black screen / no login right now. |
 | [quick-reference.md](quick-reference.md) | One-page cheatsheet. |
+
+> ### 📌 Canonical, always-current sources
+> Arch is rolling-release — driver packages, default kernel parameters, and recommendations change. **When in doubt, the wiki is authoritative over this guide.** This guide explains the *why* and the Optimus/Artix specifics; the wiki has the current package names and defaults.
+>
+> - **[ArchWiki: NVIDIA](https://wiki.archlinux.org/title/NVIDIA)** — installation, packages, DRM/KMS, mkinitcpio
+> - **[ArchWiki: NVIDIA/Troubleshooting](https://wiki.archlinux.org/title/NVIDIA/Troubleshooting)** — black screens, module load failures
+> - **[ArchWiki: NVIDIA/Tips and tricks](https://wiki.archlinux.org/title/NVIDIA/Tips_and_tricks)** & **[PRIME](https://wiki.archlinux.org/title/PRIME)** — Optimus / hybrid offload
+> - **[NVIDIA: transition to open kernel modules](https://developer.nvidia.com/blog/nvidia-transitions-fully-towards-open-source-gpu-kernel-modules/)** — open-vs-proprietary, default since driver 560
+> - *Last reconciled with the wiki: 2026-05-21.*
 
 ---
 
@@ -82,16 +91,18 @@ If you chose the non-DKMS `nvidia` or `nvidia-open` package (prebuilt module), y
 ## Step 3: Install the NVIDIA stack
 
 ```bash
-sudo pacman -S nvidia-dkms nvidia-utils nvidia-settings \
+sudo pacman -S nvidia-open-dkms nvidia-utils nvidia-settings \
                lib32-nvidia-utils \
                opencl-nvidia cuda
 ```
+
+(On a legacy Maxwell/Pascal/Volta GPU, swap `nvidia-open-dkms` → `nvidia-dkms` per [Step 0](#step-0-know-your-kernel-and-pick-the-right-driver-package).)
 
 What each does:
 
 | Package | Purpose |
 |---------|---------|
-| `nvidia-dkms` (or `nvidia`/`nvidia-open-dkms`) | The kernel module |
+| `nvidia-open-dkms` (or `nvidia-open`/`nvidia-dkms`/`nvidia`) | The kernel module |
 | `nvidia-utils` | Userspace driver libs, `nvidia-smi`, the X driver, GL/Vulkan ICDs |
 | `lib32-nvidia-utils` | 32-bit userspace libs (Steam, Wine) — needs multilib |
 | `nvidia-settings` | GUI control panel |
@@ -113,25 +124,20 @@ sudo pacman -S nvidia nvidia-lts nvidia-utils nvidia-settings
 
 ---
 
-## Step 4: Early KMS — load the modules in the initramfs
+## Step 4: Early KMS — load the modules in the initramfs (now OPTIONAL)
 
-This is the Arch equivalent of the work Debian's installer does silently. It's required for a clean boot and **mandatory for Wayland**.
+> **Updated 2026-05-21:** This step used to be described as mandatory. It isn't anymore. On current drivers, `nvidia-utils` ships the modeset config so DRM KMS (and `fbdev`) are **enabled by default** — see [Step 6](#step-6-drm-kms-modesetting-now-on-by-default). Early-loading the modules into the initramfs is now **optional**: do it only if you see startup issues — e.g. the `nvidia` module loading *after* the display manager (a black flash / flicker on boot, or a brief low-res console), or you want the GPU up as early as possible. A plain install without this step boots fine on most systems.
 
-Edit `/etc/mkinitcpio.conf`:
+If you want it, edit `/etc/mkinitcpio.conf`:
 
 ```bash
 sudo nano /etc/mkinitcpio.conf
 ```
 
-1. Add the NVIDIA modules to the `MODULES` array so they load early:
-   ```
-   MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
-   ```
-2. **Remove `kms` from the `HOOKS` array** if present — the `kms` hook pulls nouveau into the initramfs, which fights the proprietary driver:
-   ```
-   HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block filesystems fsck)
-   #                                                  ^^^ remove this 'kms'
-   ```
+Add the NVIDIA modules to the `MODULES` array so they load early:
+```
+MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
+```
 
 Rebuild the initramfs:
 
@@ -139,9 +145,9 @@ Rebuild the initramfs:
 sudo mkinitcpio -P
 ```
 
-> **Two valid approaches — know which you're using.** This guide early-loads the NVIDIA modules via `MODULES=(...)` and drops the `kms` hook, which is the Arch Wiki recommendation and is **the more robust path for Wayland / wlroots compositors**.
+> **On the `kms` hook:** the `mkinitcpio` `kms` hook autoloads whatever DRM driver `udev` sees, including **nouveau**. If you early-load the NVIDIA modules above, you generally want nouveau to *not* also be pulled in. Current `nvidia-utils` ships a modprobe rule that blacklists nouveau, so on a normal install they don't conflict — but if you hit a nouveau-vs-nvidia clash, removing `kms` from `HOOKS` (or confirming nouveau is blacklisted) is the fix. Don't remove `kms` reflexively; only if you have the conflict.
 >
-> The [LogOS](#confirmed-in-logos) installer takes the other valid approach: it **keeps the `kms` hook**, leaves `MODULES` minimal (just the root-fs module, e.g. `btrfs`), and relies on `nvidia_drm.modeset=1` (Step 6) plus the early-KMS hook to bring up the GPU. That works fine for X11 and KDE/SDDM. If you go that route, *don't also* add the nvidia modules to `MODULES` — pick one. For a Wayland-first laptop, prefer early-loading the modules.
+> The [LogOS](#confirmed-in-logos) installer **keeps the `kms` hook** with a minimal `MODULES` and relies on the default modeset — a perfectly valid setup for X11/KDE. Pick one approach; don't both early-load the modules *and* fight the hook.
 
 ---
 
@@ -173,9 +179,14 @@ Exec=/bin/sh -c 'while read -r trg; do case $trg in linux*) exit 0; esac; done; 
 
 ---
 
-## Step 6: Enable DRM KMS modesetting (required for Wayland; recommended generally)
+## Step 6: DRM KMS modesetting (now ON by default)
 
-Add the kernel parameter `nvidia_drm.modeset=1`. Modern drivers (545+) default this on, but set it explicitly.
+> **Updated 2026-05-21:** On current drivers you usually **don't need to set anything here.** `nvidia-utils` ships a config that enables both `nvidia_drm.modeset=1` and `nvidia_drm.fbdev=1` by default, so DRM KMS — the thing Wayland needs — is already on after Step 3. Verify with:
+> ```bash
+> cat /sys/module/nvidia_drm/parameters/modeset   # expect: Y
+> ```
+
+**Only if that prints `N`** (an old driver, or you previously disabled it), add the kernel parameter manually:
 
 **GRUB:** edit `/etc/default/grub`, append to `GRUB_CMDLINE_LINUX_DEFAULT`:
 ```
@@ -271,7 +282,7 @@ python -c "import torch; print(torch.cuda.is_available())"   # True
 
 ## Wayland on Arch
 
-Because Arch ships 570+ (well above the 555 floor that blocks Debian), Wayland is genuinely usable on Arch — *if* you have `nvidia_drm.modeset=1` (Step 6) and a current driver. To move:
+Because Arch ships 570+ (well above the 555 floor that blocks Debian), Wayland is genuinely usable on Arch — with DRM KMS active (on by default now — [Step 6](#step-6-drm-kms-modesetting-now-on-by-default)) and a current driver. To move:
 
 1. Confirm `cat /sys/module/nvidia_drm/parameters/modeset` prints `Y`.
 2. Remove any `DisplayServer=x11` / `WaylandEnable=false` overrides.
@@ -281,7 +292,7 @@ Optimus laptops can still see flicker / XWayland sync issues. If anything misbeh
 
 ### wlroots compositors (Hyprland / Sway) — required NVIDIA env vars
 
-Plain KDE/GNOME on Wayland mostly works once `modeset=1` is set. **wlroots-based compositors (Hyprland, Sway) historically needed extra NVIDIA environment variables**, or you got an invisible/garbled cursor, a black screen, or a compositor that wouldn't start. Set the GL/VA-API vars globally via `/etc/environment.d/`:
+Plain KDE/GNOME on Wayland mostly works out of the box now (DRM KMS is on by default). **wlroots-based compositors (Hyprland, Sway) historically needed extra NVIDIA environment variables**, or you got an invisible/garbled cursor, a black screen, or a compositor that wouldn't start. Set the GL/VA-API vars globally via `/etc/environment.d/`:
 
 ```bash
 sudo mkdir -p /etc/environment.d
@@ -391,7 +402,7 @@ Note `sbctl` signs kernels/EFI binaries; the **NVIDIA DKMS module still needs th
 1. **Partial upgrades are the #1 Arch black-screen cause.** `nvidia-utils` must match the running kernel module exactly. Never `pacman -Sy <pkg>` a single package — always `pacman -Syu` the whole system. If you see "API mismatch" in Xorg logs or `nvidia-smi` reports a version mismatch, you partial-upgraded.
 2. **Match the driver package to the kernel.** `nvidia` ↔ `linux`, `nvidia-lts` ↔ `linux-lts`, `nvidia-dkms` for anything custom or multiple kernels. Mismatch = module won't load after the next kernel update.
 3. **The pacman hook is only for the prebuilt packages.** `*-dkms` rebuilds itself; don't double up.
-4. **`nvidia_drm.modeset=1` is mandatory for Wayland** and harmless for X11. Verify via `/sys/module/nvidia_drm/parameters/modeset`.
+4. **DRM KMS is required for Wayland — but it's now ON by default** (current `nvidia-utils` enables `nvidia_drm.modeset` and `fbdev`). You usually set nothing; just verify `cat /sys/module/nvidia_drm/parameters/modeset` prints `Y`, and only add the kernel param manually if it's `N`.
 5. **Don't blacklist nouveau by hand and also load nvidia early** — putting the nvidia modules in `MODULES` and dropping the `kms` hook is the clean way; manual nouveau blacklists are only for recovery.
 6. **`grub-mkconfig` ≠ `pacman.conf`.** Bootloader config and package config are separate subsystems (mirrors the Debian `update-grub` note).
 7. **Optimus laptops: prefer PRIME offload (`prime-run`)** over a switching daemon unless you specifically need full nvidia-only mode. Less to break.
@@ -406,7 +417,7 @@ Several pieces of this guide are battle-tested in my **LogOS** Arch installer (a
 
 - **Driver install** (`lib/desktop.sh`): detects the GPU via `lspci` and installs `nvidia nvidia-utils nvidia-settings nvidia-lts` — the dual prebuilt-module pattern (both `linux` and `linux-lts` kernels), not DKMS. See [Step 3 → multi-kernel pattern](#multi-kernel-pattern-prebuilt-modules-instead-of-dkms).
 - **Wayland env vars** (`lib/desktop-hyprland.sh`): writes `/etc/environment.d/logos-nvidia.conf` with `LIBVA_DRIVER_NAME=nvidia`, `__GLX_VENDOR_LIBRARY_NAME=nvidia`, `WLR_NO_HARDWARE_CURSORS=1` whenever an NVIDIA GPU is detected. **Note:** that LogOS code predates Hyprland 0.42, which deprecated `WLR_NO_HARDWARE_CURSORS` in favor of the `cursor { no_hardware_cursors = true }` config — so on current Hyprland the LogOS env var is harmless-but-dated. See [wlroots compositors](#wlroots-compositors-hyprland--sway--required-nvidia-env-vars).
-- **mkinitcpio** (`scripts/03-chroot-setup.sh`): keeps the `kms` hook and minimal `MODULES`, relying on `nvidia_drm.modeset=1` rather than early-loading the modules. See the [Step 4 note](#step-4-early-kms--load-the-modules-in-the-initramfs).
+- **mkinitcpio** (`scripts/03-chroot-setup.sh`): keeps the `kms` hook and minimal `MODULES`, relying on the (now default-on) DRM modeset rather than early-loading the modules. See the [Step 4 note](#step-4-early-kms--load-the-modules-in-the-initramfs-now-optional).
 - **Secure Boot** (build guide §11): documents NVIDIA + Secure Boot as "fragile / expect pain," recommends **disabling Secure Boot for NVIDIA** (Option A) and the DKMS-MOK-signing flow (Option B) when you must keep it on. Hardware-compat notes rate NVIDIA RTX 3000/4000 as "Fragile — DKMS + Secure Boot."
 - **Recovery**: LogOS's troubleshooting appendix uses the same `nomodeset` GRUB edit → `pacman -S nvidia-dkms && mkinitcpio -P` path documented in [recovery.md](recovery.md).
 

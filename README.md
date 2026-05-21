@@ -31,6 +31,8 @@ Every distro folder follows the same shape:
 - **`recovery.md`** — the "screen is black right now" emergency runbook (decision tree + copy-paste fixes).
 - **`quick-reference.md`** — a one-page cheatsheet: full sequence, verify commands, package map, emergency one-liners.
 
+Each family's `README.md` opens with a **📌 Canonical, always-current sources** box linking the authoritative upstream docs (ArchWiki, Debian Wiki, RPM Fusion, KDE/NVIDIA). These guides explain the *why* and the Optimus/Alienware specifics; on rolling-release distros especially, **trust the upstream docs over this repo when they disagree** — and tell me (or open an issue) so the guide gets reconciled, like the 2026-05-21 Arch DRM-modeset update.
+
 ## Quick start
 
 1. Find your distro in the table above and open its directory.

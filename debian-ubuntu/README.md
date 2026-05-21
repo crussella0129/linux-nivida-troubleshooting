@@ -16,6 +16,14 @@ The `apt`-based family. Debian and Ubuntu share the package manager but **differ
 | [recovery.md](recovery.md) | **Emergency runbook.** Black screen / no login right now — decision tree and copy-paste fixes. |
 | [quick-reference.md](quick-reference.md) | One-page cheatsheet: full sequences, verify commands, Debian-vs-Ubuntu package map, emergency one-liners. |
 
+> ### 📌 Canonical, always-current sources
+> Driver versions and defaults change between releases — **when this guide and the official docs disagree, trust the official docs.** This guide adds the Optimus/Alienware specifics and the hard-won failure modes.
+>
+> - **[Debian Wiki: NvidiaGraphicsDrivers](https://wiki.debian.org/NvidiaGraphicsDrivers)** — the authoritative Debian procedure & current driver version
+> - **[Ubuntu: NVIDIA drivers installation](https://documentation.ubuntu.com/server/how-to/graphics/install-nvidia-drivers/)** — `ubuntu-drivers` / `prime-select`
+> - **[KDE: Plasma/Wayland/Nvidia](https://community.kde.org/Plasma/Wayland/Nvidia)** — the Wayland driver-version floor (555+)
+> - *Last reconciled: 2026-05-21.*
+
 ## Start here
 
 - **Debian 13 (KDE/SDDM):** → [debian-trixie.md](debian-trixie.md)
