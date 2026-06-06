@@ -2,7 +2,7 @@
 
 My personal guides and hard-won notes on getting NVIDIA cards working on Linux — without black-screening the machine on first login.
 
-These following was written using an **Alienware Optimus laptop** (Intel iGPU + NVIDIA dGPU) where the naïve `install the driver and reboot` path lands you at a black screen. The notes generalize to most NVIDIA + hybrid-graphics setups, but this will work for most any Debian + Nvidia setup.
+These following was written using an **Alienware Optimus laptop** (Intel iGPU + NVIDIA dGPU) where the naïve `install the driver and reboot` path lands you at a black screen, but this will work for most any Debian + Nvidia setup.
 
 ## The universal principle
 
